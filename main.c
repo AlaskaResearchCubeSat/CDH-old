@@ -86,7 +86,7 @@ void cmd_parse(void *p) __toplevel{
       printf("%s\r\n",buffer);
     }
     if(e&0x02){
-      puts("Status Recived\r");
+      //puts("Status Recived\r");
     }
     if(e&0x04){
       puts("SPI bus Free\r");

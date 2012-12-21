@@ -261,57 +261,107 @@ int txCmd(char **argv,unsigned short argc){
 
 //Send data over SPI
 int spiCmd(char **argv,unsigned short argc){
-  unsigned char addr_m,addr_s;
+  unsigned char addr_s,addr_d;
   unsigned char buff[40],*ptr;
+  char v;
   char *end;
   unsigned short crc;
   //static unsigned char rx[2048+2];
   static unsigned char rx[512+2];
-  int resp,i,len=100;
+  int resp,i,len=0;
   if(argc<2){
     printf("Error : too few arguments.\r\n");
     return 3;
   }
-  //get slave address
+  if(argc>3){
+    printf("Error : too many arguments.\r\n");
+    return 5;
+  }
+  //get source address
   addr_s=getI2C_addr(argv[1],0);
   if(addr_s==0xFF){
     return 1;
   }
-  //get master address
-  addr_m=getI2C_addr(argv[2],0);
-  if(addr_m==0xFF){
+  //get destination address
+  addr_d=getI2C_addr(argv[2],0);
+  if(addr_d==0xFF){
+    return 1;
+  }
+  if(addr_s==addr_d){
+    printf("Error : source address must be diffrent from destination address\r\n");
     return 1;
   }
   //check for other arguments
-  if(argc>=3){
+  if(argc==3){
+    if(addr_s!=BUS_ADDR_CDH){
+      printf("Error : length not accepted unless source is CDH\r\n");
+      return 3;
+    }
     //Get packet length
-    len=strtol(argv[2],&end,0);
-    if(end==argv[2]){
-        printf("Error : could not parse length \"%s\".\r\n",argv[2]);
+    len=strtol(argv[3],&end,0);
+    if(end==argv[3]){
+        printf("Error : could not parse length \"%s\".\r\n",argv[3]);
         return 2;
     }
     if(*end!=0){
-      printf("Error : unknown sufix \"%s\" at end of length \"%s\"\r\n",end,argv[2]);
+      printf("Error : unknown sufix \"%s\" at end of length \"%s\"\r\n",end,argv[3]);
       return 3;
     }    
     if(len+2>sizeof(rx)){
       printf("Error : length is too long.\r\n");
       return 4;
     }
+  }else if(addr_s==BUS_ADDR_CDH){
+    printf("Error : length must be given when source is CDH.\r\n");
+    return 3;
   }
-  //TODO: fixme
-  printf("fixme: implement new SPI commands\r\n");
-  return 0;
 
-  //setup packet 
-  ptr=BUS_cmd_init(buff,6);
-  ptr[0]=addr_m;
-  ptr[1]=addr_s;
-  ptr[2]=len>>8;  //Len MSB
-  ptr[3]=len;     //len LSB
-  //send command
-  BUS_cmd_tx(addr_s,buff,4,0,SEND_FOREGROUND);
-  
+  printf("len = %i\r\n",len);
+
+  if(addr_s==BUS_ADDR_CDH){
+    //seed random data
+    v=TAR;
+    //fill buffer with "random" data
+    for(i=0;i<len;i++){
+      //next value in the LFSR sequence x^8 + x^6 + x^5 + x^4 + 1
+      //code taken from: http://en.wikipedia.org/wiki/Linear_feedback_shift_register#Galois_LFSRs
+      v=(v>>1)^(-(v&1)&0xB8);   
+      rx[i]=v;
+    }
+    //send SPI data
+    resp=BUS_SPI_txrx(addr_d,rx,rx,len);
+    //TESTING: wait for transaction to fully complete
+    while(UCB0STAT&UCBBUSY);
+    //TESTING: set pin low
+    P8OUT&=~BIT0;
+    switch(resp){
+      case ERR_BADD_ADDR:
+        printf("Error : Bad Address\r\n");
+      break;
+      case RET_SUCCESS:
+        //print out data message
+        printf("SPI data recived\r\n");
+        //print out data
+        for(i=0;i<len;i++){
+          //printf("0x%02X ",rx[i]);
+          printf("%03i ",rx[i]);
+        }
+        printf("\r\n");
+      break;
+      case ERR_BAD_CRC:
+        puts("Bad CRC\r");
+      break;
+      case ERR_TIMEOUT:
+        printf("Timeout Error\r\n");
+      break;
+      default:      
+        printf("Unknown Error %i\r\n",resp);
+      break;
+    }
+  }else{
+    printf("FIXME : write code here\r\n");
+    return -1;
+  }
   return 0;
 }
 
@@ -441,7 +491,7 @@ CMD_SPEC cmd_tbl[]={{"help"," [command]\r\n\t""get a list of commands or help on
                      {"stats","\r\n\t""Print task status",statsCmd},
                      {"reset","\r\n\t""reset the msp430.",restCmd},
                      {"tx"," [noACK] [noNACK] addr ID [[data0] [data1]...]\r\n\t""send data over I2C to an address",txCmd},
-                     {"SPI","addr [len]\r\n\t""Send data using SPI.",spiCmd},
+                     {"SPI","src dest [len]\r\n\t""cause a SPI transaction to happen.",spiCmd},
                      {"print"," addr str1 [[str2] ... ]\r\n\t""Send a string to addr.",printCmd},
                      {"tst"," addr len\r\n\t""Send test data to addr.",tstCmd},
                      {"time","\r\n\t""Return current time.",timeCmd},
