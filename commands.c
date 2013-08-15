@@ -9,6 +9,8 @@
 #include <UCA1_uart.h>
 #include <crc.h>
 #include "CDH.h"
+#include <Error.h>
+#include "CDH_errors.h"
 
 
 //helper function to parse I2C address
@@ -94,7 +96,7 @@ int restCmd(char **argv,unsigned short argc){
     //wait for UART buffer to empty
     while(UCA1_CheckBusy());
     //write to WDTCTL without password causes PUC
-    WDT_RESET();
+    reset(ERR_LEV_INFO,CDH_ERR_SRC_CMD,CMD_ERR_RESET,0);
     //Never reached due to reset
     puts("Error : Reset Failed!\r");
   }
