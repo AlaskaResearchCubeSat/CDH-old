@@ -6,21 +6,19 @@
       <configuration Name="Common" filter="c;h;s;asm;inc;s43"/>
       <file file_name="commands.c"/>
       <file file_name="main.c"/>
-      <file file_name="terminal.c"/>
-      <file file_name="terminal.h"/>
-      <file file_name="UCA1_uart.c"/>
-      <file file_name="UCA1_uart.h"/>
-      <file file_name="UCint.c"/>
+      <file file_name="CDH.c"/>
+      <file file_name="CDH.h"/>
+      <file file_name="UC1int.c"/>
     </folder>
     <folder Name="System Files">
       <file file_name="$(StudioDir)/ctl/source/threads.js"/>
       <file file_name="crt0.asm"/>
     </folder>
   </project>
-  <configuration Name="MSP430 Debug" inherited_configurations="MSP430;Debug" linker_additional_files="Z:\\Software\\BUS\\library\\MSP430 Debug CDH\\BUSlib.hza"/>
+  <configuration Name="MSP430 Debug" inherited_configurations="MSP430;Debug" linker_additional_files="Z:/Software/lib/BUSlib_Debug_CDH.hza;Z:/Software/lib/termlib_Debug.hza;Z:/Software/lib/UART_UCA1_Debug.hza"/>
   <configuration Name="MSP430" Platform="MSP430" hidden="Yes"/>
   <configuration Name="Debug" build_debug_information="Yes" hidden="Yes"/>
-  <configuration Name="MSP430 Release" inherited_configurations="MSP430;Release" linker_additional_files="Z:\\Software\\BUS\\library\\MSP430 Release CDH\\BUSlib.hza"/>
+  <configuration Name="MSP430 Release" inherited_configurations="MSP430;Release" linker_additional_files="Z:/Software/lib/BUSlib_Release_CDH.hza;Z:/Software/lib/termlib_Release.hza;Z:/Software/lib/UART_UCA1_Release.hza"/>
   <configuration Name="Release" build_debug_information="Yes" c_preprocessor_definitions="NDEBUG" c_system_include_directories="$(StudioDir)/include;$(PackagesDir)/include;Z:\\Software\\BUS\\library" hidden="Yes" optimize_block_locality="Yes" optimize_copy_propagation="Yes" optimize_cross_calling="Standard" optimize_cross_jumping="Yes" optimize_dead_code="Yes" optimize_jump_chaining="Yes" optimize_jump_threading="Yes" optimize_tail_merging="Yes"/>
-  <configuration Name="Common" c_system_include_directories="$(StudioDir)/include;$(PackagesDir)/include;Z:\\Software\\BUS\\library" linker_additional_files="$(StudioDir)/ctl/lib/libctl$(LibExt).hza" linker_printf_fmt_level="long" linker_scanf_fmt_level="int"/>
+  <configuration Name="Common" c_system_include_directories="$(StudioDir)/include;$(PackagesDir)/include;Z:/Software/include" linker_additional_files="$(StudioDir)/ctl/lib/libctl$(LibExt).hza" linker_printf_fmt_level="long" linker_scanf_fmt_level="int"/>
 </solution>

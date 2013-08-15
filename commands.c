@@ -3,10 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <msp430.h>
-#include <ctl_api.h>
-#include "terminal.h"
-#include "ARCbus.h"
-#include "UCA1_uart.h"
+#include <ctl.h>
+#include <terminal.h>
+#include <ARCbus.h>
+#include <UCA1_uart.h>
+#include <crc.h>
+#include "CDH.h"
 
 
 //helper function to parse I2C address
@@ -15,8 +17,25 @@ unsigned char getI2C_addr(char *str,short res){
   unsigned long addr;
   unsigned char tmp;
   char *end;
+  //attempt to parse a numeric address
   addr=strtol(str,&end,0);
+  //check for errors
   if(end==str){
+    //check for symbolic matches
+    if(!strcmp(str,"LEDL")){
+      return BUS_ADDR_LEDL;
+    }else if(!strcmp(str,"ACDS")){
+      return BUS_ADDR_ACDS;
+    }else if(!strcmp(str,"COMM")){
+      return BUS_ADDR_COMM;
+    }else if(!strcmp(str,"IMG")){
+      return BUS_ADDR_IMG;
+    }else if(!strcmp(str,"CDH")){
+      return BUS_ADDR_CDH;
+    }else if(!strcmp(str,"GC")){
+      return BUS_ADDR_GC;
+    }
+    //not a known address, error
     printf("Error : could not parse address \"%s\".\r\n",str);
     return 0xFF;
   }
@@ -24,15 +43,18 @@ unsigned char getI2C_addr(char *str,short res){
     printf("Error : unknown sufix \"%s\" at end of address\r\n",end);
     return 0xFF;
   }
+  //check address length
   if(addr>0x7F){
     printf("Error : address 0x%04lX is not 7 bits.\r\n",addr);
     return 0xFF;
   }
+  //check for reserved address
   tmp=0x78&addr;
   if((tmp==0x00 || tmp==0x78) && res){
     printf("Error : address 0x%02lX is reserved.\r\n",addr);
     return 0xFF;
   }
+  //return address
   return addr;
 }
 
@@ -60,7 +82,7 @@ int restCmd(char **argv,unsigned short argc){
     }
     //setup packet 
     BUS_cmd_init(buff,CMD_RESET);
-    resp=BUS_cmd_tx(addr,buff,0,0,SEND_FOREGROUND);
+    resp=BUS_cmd_tx(addr,buff,0,0,BUS_I2C_SEND_FOREGROUND);
     switch(resp){
       case 0:
         puts("Command Sent Sucussfully.\r");
@@ -245,7 +267,7 @@ int txCmd(char **argv,unsigned short argc){
     }
   }
   len=i;
-  resp=BUS_cmd_tx(addr,buff,len,nack,SEND_FOREGROUND);
+  resp=BUS_cmd_tx(addr,buff,len,nack,BUS_I2C_SEND_FOREGROUND);
   switch(resp){
     case RET_SUCCESS:
       printf("Command Sent Sucussfully.\r\n");
@@ -266,8 +288,7 @@ int spiCmd(char **argv,unsigned short argc){
   char v;
   char *end;
   unsigned short crc;
-  //static unsigned char rx[2048+2];
-  static unsigned char rx[512+2];
+  static unsigned char *rx=NULL;
   int resp,i,len=0;
   if(argc<2){
     printf("Error : too few arguments.\r\n");
@@ -307,15 +328,22 @@ int spiCmd(char **argv,unsigned short argc){
       printf("Error : unknown sufix \"%s\" at end of length \"%s\"\r\n",end,argv[3]);
       return 3;
     }    
-    if(len+2>sizeof(rx)){
-      printf("Error : length is too long.\r\n");
+    if(len+2>BUS_get_buffer_size()){
+      printf("Error : length is too long. Maximum Length is %u\r\n",BUS_get_buffer_size());
       return 4;
     }
   }else if(addr_s==BUS_ADDR_CDH){
     printf("Error : length must be given when source is CDH.\r\n");
     return 3;
   }
-
+  //get buffer, set a timeout of 2 secconds
+  rx=BUS_get_buffer(CTL_TIMEOUT_DELAY,2048);
+  //check for error
+  if(rx==NULL){
+    printf("Error : Timeout while waiting for buffer.\r\n");
+    return -1;
+  }
+  
   printf("len = %i\r\n",len);
 
   if(addr_s==BUS_ADDR_CDH){
@@ -325,20 +353,28 @@ int spiCmd(char **argv,unsigned short argc){
     for(i=0;i<len;i++){
       //next value in the LFSR sequence x^8 + x^6 + x^5 + x^4 + 1
       //code taken from: http://en.wikipedia.org/wiki/Linear_feedback_shift_register#Galois_LFSRs
-      v=(v>>1)^(-(v&1)&0xB8);   
-      rx[i]=v;
+      //v=(v>>1)^(-(v&1)&0xB8);   
+      //rx[i]=v;
+      rx[i]=(i==(len-1))?0xF0:0x0F;
     }
+    printf("Sending SPI data:\r\n");
+    //print out data
+    for(i=0;i<len;i++){
+      //printf("0x%02X ",rx[i]);
+      printf("%3i ",rx[i]);
+      if((i%20)==19){
+        printf("\r\n");
+      }
+    }
+    printf("\r\nCRC8 = %u\r\n",crc8(rx,len));
     //send SPI data
     resp=BUS_SPI_txrx(addr_d,rx,rx,len);
     //TESTING: wait for transaction to fully complete
     while(UCB0STAT&UCBBUSY);
     //TESTING: set pin low
     P8OUT&=~BIT0;
-    switch(resp){
-      case ERR_BADD_ADDR:
-        printf("Error : Bad Address\r\n");
-      break;
-      case RET_SUCCESS:
+    //check return value
+    if(resp==RET_SUCCESS){
         //print out data message
         printf("SPI data recived\r\n");
         //print out data
@@ -347,21 +383,17 @@ int spiCmd(char **argv,unsigned short argc){
           printf("%03i ",rx[i]);
         }
         printf("\r\n");
-      break;
-      case ERR_BAD_CRC:
-        puts("Bad CRC\r");
-      break;
-      case ERR_TIMEOUT:
-        printf("Timeout Error\r\n");
-      break;
-      default:      
-        printf("Unknown Error %i\r\n",resp);
-      break;
+    }else{
+      printf("%s\r\n",BUS_error_str(resp));
     }
   }else{
-    printf("FIXME : write code here\r\n");
+    printf("FIXME : write code here\r\n");      
+    //free buffer
+    BUS_free_buffer();
     return -1;
   }
+  //free buffer
+  BUS_free_buffer();
   return 0;
 }
 
@@ -395,7 +427,7 @@ int printCmd(char **argv,unsigned short argc){
   //TESTING: set pin high
   P8OUT|=BIT0;
   //send command
-  BUS_cmd_tx(addr,buff,len,0,SEND_FOREGROUND);
+  BUS_cmd_tx(addr,buff,len,0,BUS_I2C_SEND_FOREGROUND);
   //TESTING: set pin low
   P8OUT&=~BIT0;
   return 0;
@@ -431,7 +463,7 @@ int tstCmd(char **argv,unsigned short argc){
   //TESTING: set pin high
   P8OUT|=BIT0;
   //send command
-  BUS_cmd_tx(addr,buff,len,0,SEND_FOREGROUND);
+  BUS_cmd_tx(addr,buff,len,0,BUS_I2C_SEND_FOREGROUND);
   //TESTING: wait for transaction to fully complete
   while(UCB0STAT&UCBBUSY);
   //TESTING: set pin low
@@ -458,21 +490,21 @@ int statCmd(char **argv,unsigned short argc){
   ptr[2]=time>>8;
   ptr[3]=time;
   //send command
-  BUS_cmd_tx(BUS_ADDR_GC,buff,4,0,SEND_FOREGROUND);
+  BUS_cmd_tx(BUS_ADDR_GC,buff,4,0,BUS_I2C_SEND_FOREGROUND);
   return 0;
 }
 
 char *i2c_stat2str(unsigned char stat){
   switch(stat){
-    case I2C_IDLE:
+    case BUS_I2C_IDLE:
       return "I2C_IDLE";
-    case I2C_TX:
+    case BUS_I2C_TX:
       return "I2C_TX";
-    case I2C_RX:
+    case BUS_I2C_RX:
       return "I2C_RX";
-   /* case I2C_TXRX:
+   /* case BUS_I2C_TXRX:
       return "I2C_TXRX";
-    case I2C_RXTX:
+    case BUS_I2C_RXTX:
       return "I2C_RXTX";*/
     default:
       return "unknown state";
@@ -484,8 +516,27 @@ int i2c_statCmd(char **argv,unsigned short argc){
   return 0;
 }
 
+int beaconCmd(char **argv,unsigned short argc){
+  if(argc>1){
+    printf("Error : Too many arguments\r\n");
+    return -1;
+  }
+  if(argc==1){
+    if(!strcmp(argv[1],"on")){
+      beacon_on=1;
+    }else if(!strcmp(argv[1],"off")){
+      beacon_on=0;
+    }else{
+      printf("Error : Unknown argument \"%s\"\r\n",argv[1]);
+      return -2;
+    }
+  }
+  printf("Beacon : %s\r\n",beacon_on?"on":"off");
+  return 0;
+}
+
 //table of commands with help
-CMD_SPEC cmd_tbl[]={{"help"," [command]\r\n\t""get a list of commands or help on a spesific command.",helpCmd},
+const CMD_SPEC cmd_tbl[]={{"help"," [command]\r\n\t""get a list of commands or help on a spesific command.",helpCmd},
                      {"priority"," task [priority]\r\n\t""Get/set task priority.",priorityCmd},
                      {"timeslice"," [period]\r\n\t""Get/set ctl_timeslice_period.",timesliceCmd},
                      {"stats","\r\n\t""Print task status",statsCmd},
@@ -497,5 +548,6 @@ CMD_SPEC cmd_tbl[]={{"help"," [command]\r\n\t""get a list of commands or help on
                      {"time","\r\n\t""Return current time.",timeCmd},
                      {"stat","\r\n\t""Get status from all subsystems.",statCmd},
                      {"I2Cstat","\r\n\t""Print I2C status\r\n",i2c_statCmd},
+                     {"beacon","[on|off]\r\n\t""Turn on/off status requests and beacon\r\n",beaconCmd},
                      //end of list
                      {NULL,NULL,NULL}};
