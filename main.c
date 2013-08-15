@@ -6,6 +6,7 @@
 #include <ARCbus.h>
 #include <UCA1_uart.h>
 #include <terminal.h>
+#include <Error.h>
 #include "CDH.h"
 
 CTL_TASK_t tasks[3];
@@ -31,6 +32,11 @@ int main(void){
   
   //setup UCA1 UART
   UCA1_init_UART();
+  
+  //setup error reporting library
+  error_init();
+  //TESTING: set log level to report everything by default
+  set_error_level(0);
     
   //setup P7 for LED's
   P7OUT=0x00;
