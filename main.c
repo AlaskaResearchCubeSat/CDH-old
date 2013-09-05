@@ -33,8 +33,6 @@ int main(void){
   //setup UCA1 UART
   UCA1_init_UART();
   
-  //setup error reporting library
-  error_init();
   //TESTING: set log level to report everything by default
   set_error_level(0);
     
