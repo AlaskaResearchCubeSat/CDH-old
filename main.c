@@ -18,9 +18,14 @@ unsigned stack3[1+64+1];
 
 
 
-//set printf and friends to output to UCA1 uart
+//set printf and friends to send chars out UCA1 uart
 int __putchar(int c){
-  return UCA1_TxChar(c);
+  //don't print if async connection is open
+  if(!async_isOpen()){
+    return UCA1_TxChar(c);
+  }else{
+    return EOF;
+  }
 }
 
 int main(void){
