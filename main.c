@@ -39,6 +39,8 @@ int main(void){
   //setup P7 for LED's
   P7OUT=0x00;
   P7DIR=0xFF;
+    
+  P7OUT|=BIT7|BIT6;
 
   //setup P8 for output
   P8OUT=0x00;
