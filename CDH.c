@@ -131,7 +131,7 @@ void cmd_parse(void *p) __toplevel{
   unsigned int e;
   unsigned char buff[40],*ptr;
   ticker time;
-  int resp;
+  int resp,i;
   //init event
   ctl_events_init(&cmd_parse_evt,0);
   for(;;){
@@ -145,7 +145,10 @@ void cmd_parse(void *p) __toplevel{
       //TODO: keep track of who is using SPI
     }
     if(e&CMD_PARSE_GET_STAT && beacon_on){
-      //printf("Requesting status\r\n");
+      //clear status flags from old status packet
+      system_stat.flags=0;
+      //print message
+      printf("Requesting status\r\n");
       //setup packet 
       ptr=BUS_cmd_init(buff,CMD_SUB_STAT);
       //get time
@@ -159,7 +162,7 @@ void cmd_parse(void *p) __toplevel{
       BUS_cmd_tx(BUS_ADDR_GC,buff,4,0,BUS_I2C_SEND_FOREGROUND);
     }
     if(e&CMD_PARSE_SEND_STAT && beacon_on){
-      //printf("Sending status\r\n");
+      printf("Sending status\r\n");
       //get time for beacon
       time=get_ticker_time();
       //write time into status
@@ -169,6 +172,33 @@ void cmd_parse(void *p) __toplevel{
       system_stat.time3=time;
       //send SPI data
       resp=BUS_SPI_txrx(BUS_ADDR_COMM,(unsigned char*)&system_stat,NULL,sizeof(STAT_PACKET));
+      ptr=(unsigned char*)&system_stat;
+      for(i=0;i<sizeof(STAT_PACKET);i++){
+        printf("0x%02X ",ptr[i]);
+        if(i%15==14){
+          printf("\r\n");
+        }
+      }
+      printf("\r\n");
+      if(system_stat.flags&STAT_ALL_VALID==STAT_ALL_VALID){
+        printf("All subsystems reported status\r\n");
+      }else{
+        if(!(system_stat.flags&STAT_EPS_VALID)){
+          printf("No Status Info for EPS\r\n");
+        }
+        if(!(system_stat.flags&STAT_LEDL_VALID)){
+          printf("No Status Info for LEDL\r\n");
+        }
+        if(!(system_stat.flags&STAT_ACDS_VALID)){
+          printf("No Status Info for ACDS\r\n");
+        }
+        if(!(system_stat.flags&STAT_COMM_VALID)){
+          printf("No Status Info for COMM\r\n");
+        }
+        if(!(system_stat.flags&STAT_IMG_VALID)){
+          printf("No Status Info for IMG\r\n");
+        }
+      }
     }
   }
 }
