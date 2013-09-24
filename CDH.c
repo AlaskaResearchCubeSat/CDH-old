@@ -8,8 +8,6 @@
 
 CTL_EVENT_SET_t cmd_parse_evt;
 
-unsigned char buffer[80];
-
 short beacon_on=1;
 
 STAT_PACKET system_stat;
@@ -47,23 +45,6 @@ int SUB_parseCmd(unsigned char src,unsigned char cmd,unsigned char *dat,unsigned
       //set event
       //TODO: keep track of who is using SPI
       ctl_events_set_clear(&cmd_parse_evt,CMD_PARSE_SPI_CLEAR,0);
-      return RET_SUCCESS;
-    //Handle Print String Command
-    case 6:
-      //check packet length
-      if(len>sizeof(buffer)){
-        //return error
-        return ERR_PK_LEN;
-      }
-      //copy to temporary buffer
-      for(i=0;i<len;i++){
-        buffer[i]=dat[i];
-      }
-      //terminate string
-      buffer[i]=0;
-      //set event
-      ctl_events_set_clear(&cmd_parse_evt,CMD_PARSE_PRINT_STR,0);
-      //Return Success
       return RET_SUCCESS;
     //EPS status message
     case CMD_EPS_STAT:
@@ -136,10 +117,6 @@ void cmd_parse(void *p) __toplevel{
   ctl_events_init(&cmd_parse_evt,0);
   for(;;){
     e=ctl_events_wait(CTL_EVENT_WAIT_ANY_EVENTS_WITH_AUTO_CLEAR,&cmd_parse_evt,CMD_PARSE_ALL,CTL_TIMEOUT_NONE,0);
-    if(e&CMD_PARSE_PRINT_STR){
-      //print message
-      printf("%s\r\n",buffer);
-    }
     if(e&CMD_PARSE_SPI_CLEAR){
       puts("SPI bus Free\r");
       //TODO: keep track of who is using SPI
