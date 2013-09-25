@@ -41,6 +41,12 @@ void task_tick(void) __ctl_interrupt[TIMERA1_VECTOR]{
 int SUB_parseCmd(unsigned char src,unsigned char cmd,unsigned char *dat,unsigned short len){
   int i;
   switch(cmd){
+    case CMD_SUB_POWERUP:
+      if(len==0){
+        //TODO: keep track of which subsystems have powered up and such
+      }else{
+        return ERR_PK_LEN;
+      }
     case CMD_SPI_CLEAR:
       //set event
       //TODO: keep track of who is using SPI
